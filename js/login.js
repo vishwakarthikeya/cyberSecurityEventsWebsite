@@ -1,6 +1,5 @@
 // Login Page JavaScript
-import { loginUser, signInWithGoogle, onAuthChange } from './auth.js';
-import { showToast } from './auth.js';
+import { loginUser, signInWithGoogle, onAuthChange, isUserAdmin } from './auth.js';
 
 // DOM Elements
 const loginForm = document.getElementById('login-form');
@@ -10,7 +9,6 @@ const togglePassword = document.getElementById('togglePassword');
 const rememberMe = document.getElementById('remember-me');
 const loginBtn = document.getElementById('login-btn');
 const googleLoginBtn = document.getElementById('google-login-btn');
-const loginSpinner = document.getElementById('login-spinner');
 const emailError = document.getElementById('email-error');
 const passwordError = document.getElementById('password-error');
 
@@ -29,15 +27,19 @@ function validateForm() {
     
     // Reset errors
     emailError.textContent = '';
+    emailError.classList.remove('show');
     passwordError.textContent = '';
+    passwordError.classList.remove('show');
     
     // Email validation
     const email = emailInput.value.trim();
     if (!email) {
         emailError.textContent = 'Email is required';
+        emailError.classList.add('show');
         isValid = false;
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         emailError.textContent = 'Please enter a valid email address';
+        emailError.classList.add('show');
         isValid = false;
     }
     
@@ -45,9 +47,11 @@ function validateForm() {
     const password = passwordInput.value;
     if (!password) {
         passwordError.textContent = 'Password is required';
+        passwordError.classList.add('show');
         isValid = false;
     } else if (password.length < 6) {
         passwordError.textContent = 'Password must be at least 6 characters';
+        passwordError.classList.add('show');
         isValid = false;
     }
     
@@ -64,7 +68,8 @@ if (loginForm) {
         }
         
         // Show loading state
-        loginBtn.classList.add('loading');
+        const originalText = loginBtn.innerHTML;
+        loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
         loginBtn.disabled = true;
         
         const email = emailInput.value.trim();
@@ -75,28 +80,19 @@ if (loginForm) {
             
             if (result.success) {
                 // Check if user is admin and redirect accordingly
-                const user = result.user;
+                const isAdmin = await isUserAdmin(result.user.uid);
                 
-                // Check user role from Firestore
-                const { getCurrentUserData } = await import('./auth.js');
-                const userData = await getCurrentUserData(user.uid);
-                
-                if (userData.success) {
-                    if (userData.data.role === 'admin') {
-                        window.location.href = 'admin.html';
-                    } else {
-                        window.location.href = 'index.html';
-                    }
+                if (isAdmin) {
+                    window.location.href = 'admin.html';
                 } else {
-                    // Default redirect for users
                     window.location.href = 'index.html';
                 }
             }
         } catch (error) {
             console.error('Login error:', error);
         } finally {
-            // Reset loading state
-            loginBtn.classList.remove('loading');
+            // Reset button state
+            loginBtn.innerHTML = originalText;
             loginBtn.disabled = false;
         }
     });
@@ -105,32 +101,27 @@ if (loginForm) {
 // Handle Google login
 if (googleLoginBtn) {
     googleLoginBtn.addEventListener('click', async () => {
-        googleLoginBtn.classList.add('loading');
+        const originalText = googleLoginBtn.innerHTML;
+        googleLoginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
         googleLoginBtn.disabled = true;
         
         try {
             const result = await signInWithGoogle();
             
             if (result.success) {
-                // Check user role from Firestore
-                const { getCurrentUserData } = await import('./auth.js');
-                const userData = await getCurrentUserData(result.user.uid);
+                // Check if user is admin
+                const isAdmin = await isUserAdmin(result.user.uid);
                 
-                if (userData.success) {
-                    if (userData.data.role === 'admin') {
-                        window.location.href = 'admin.html';
-                    } else {
-                        window.location.href = 'index.html';
-                    }
+                if (isAdmin) {
+                    window.location.href = 'admin.html';
                 } else {
-                    // Default redirect for users
                     window.location.href = 'index.html';
                 }
             }
         } catch (error) {
             console.error('Google login error:', error);
         } finally {
-            googleLoginBtn.classList.remove('loading');
+            googleLoginBtn.innerHTML = originalText;
             googleLoginBtn.disabled = false;
         }
     });
@@ -140,15 +131,12 @@ if (googleLoginBtn) {
 onAuthChange(async (authState) => {
     if (authState.loggedIn && authState.user) {
         // User is already logged in, redirect based on role
-        const { getCurrentUserData } = await import('./auth.js');
-        const userData = await getCurrentUserData(authState.user.uid);
+        const isAdmin = await isUserAdmin(authState.user.uid);
         
-        if (userData.success) {
-            if (userData.data.role === 'admin') {
-                window.location.href = 'admin.html';
-            } else {
-                window.location.href = 'index.html';
-            }
+        if (isAdmin) {
+            window.location.href = 'admin.html';
+        } else {
+            window.location.href = 'index.html';
         }
     }
 });
@@ -159,7 +147,7 @@ const navLinks = document.querySelector('.nav-links');
 
 if (mobileToggle) {
     mobileToggle.addEventListener('click', () => {
-        navLinks.style.display = navLinks.style.display === 'flex' ? 'none' : 'flex';
+        navLinks.classList.toggle('show');
     });
 }
 
@@ -189,16 +177,18 @@ passwordInput.addEventListener('blur', validateForm);
 // Clear errors on input
 emailInput.addEventListener('input', () => {
     emailError.textContent = '';
+    emailError.classList.remove('show');
 });
 
 passwordInput.addEventListener('input', () => {
     passwordError.textContent = '';
+    passwordError.classList.remove('show');
 });
 
 // Add keyboard shortcuts
 document.addEventListener('keydown', (e) => {
-    // Ctrl + Enter to submit form
-    if (e.ctrlKey && e.key === 'Enter') {
+    // Enter to submit form
+    if (e.key === 'Enter' && (e.target === emailInput || e.target === passwordInput)) {
         loginForm.dispatchEvent(new Event('submit'));
     }
     
@@ -206,38 +196,15 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         loginForm.reset();
         emailError.textContent = '';
+        emailError.classList.remove('show');
         passwordError.textContent = '';
+        passwordError.classList.remove('show');
     }
 });
 
-// Add form auto-save for better UX
-let formData = {
-    email: '',
-    password: ''
-};
-
-// Save form data on input
-emailInput.addEventListener('input', (e) => {
-    formData.email = e.target.value;
-    sessionStorage.setItem('loginFormData', JSON.stringify(formData));
-});
-
-passwordInput.addEventListener('input', (e) => {
-    formData.password = e.target.value;
-    sessionStorage.setItem('loginFormData', JSON.stringify(formData));
-});
-
-// Load form data on page load
-window.addEventListener('load', () => {
-    const savedData = sessionStorage.getItem('loginFormData');
-    if (savedData) {
-        formData = JSON.parse(savedData);
-        emailInput.value = formData.email;
-        passwordInput.value = formData.password;
+// Close mobile menu when clicking outside
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.nav-menu') && navLinks.classList.contains('show')) {
+        navLinks.classList.remove('show');
     }
-});
-
-// Clear form data on successful login
-loginForm.addEventListener('submit', () => {
-    sessionStorage.removeItem('loginFormData');
 });

@@ -1,5 +1,5 @@
-// Events Page JavaScript
-import { onAuthChange, isUserAdmin, showToast } from './auth.js';
+// Admin Page JavaScript
+import { onAuthChange, logoutUser, protectAdminPage, showToast } from './auth.js';
 import { db } from './firebase-config.js';
 import { 
     collection, 
@@ -14,18 +14,21 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // DOM Elements
-const eventsGrid = document.getElementById('events-grid');
-const noEvents = document.getElementById('no-events');
-const adminActions = document.getElementById('admin-actions');
+const navProfile = document.getElementById('nav-profile');
+const userAvatar = document.getElementById('user-avatar');
+const userName = document.getElementById('user-name');
+const logoutBtn = document.getElementById('logout-btn');
+const mobileToggle = document.getElementById('mobileToggle');
+const navLinks = document.querySelector('.nav-links');
 const addEventBtn = document.getElementById('add-event-btn');
-const searchInput = document.getElementById('search-input');
-const filterCategory = document.getElementById('filter-category');
-const filterSort = document.getElementById('filter-sort');
+const refreshEventsBtn = document.getElementById('refresh-events');
+const eventSearch = document.getElementById('event-search');
+const eventsTableBody = document.getElementById('events-table-body');
+const totalEventsElement = document.getElementById('total-events');
+const upcomingEventsElement = document.getElementById('upcoming-events');
 const addEventModal = document.getElementById('add-event-modal');
 const editEventModal = document.getElementById('edit-event-modal');
 const deleteModal = document.getElementById('delete-modal');
-const modalCloseBtns = document.querySelectorAll('.modal-close');
-const cancelBtns = document.querySelectorAll('.cancel-btn, .btn-outline');
 const addEventForm = document.getElementById('add-event-form');
 const editEventForm = document.getElementById('edit-event-form');
 const deleteEventBtn = document.getElementById('delete-event-btn');
@@ -35,26 +38,31 @@ const cancelDeleteBtn = document.getElementById('cancel-delete');
 // State variables
 let events = [];
 let currentUser = null;
-let isAdmin = false;
 let eventToDelete = null;
 
-// Initialize events page
-async function initEventsPage() {
+// Initialize admin page
+async function initAdminPage() {
+    // Protect admin page
+    const isAdmin = await protectAdminPage();
+    if (!isAdmin) return;
+    
     // Check authentication state
     onAuthChange(async (authState) => {
         if (authState.loggedIn && authState.user) {
             currentUser = authState.user;
-            isAdmin = await isUserAdmin(currentUser.uid);
             
-            // Update UI based on admin status
-            if (isAdmin) {
-                adminActions.style.display = 'block';
+            // Update user info
+            if (authState.userData) {
+                userName.textContent = authState.userData.name || authState.user.email;
+                
+                // Create avatar with initials
+                const name = authState.userData.name || authState.user.email;
+                const initials = name.charAt(0).toUpperCase();
+                userAvatar.innerHTML = `<span>${initials}</span>`;
+                userAvatar.style.background = `linear-gradient(135deg, var(--warning), var(--danger))`;
             }
             
             // Load events
-            await loadEvents();
-        } else {
-            // User is not logged in, still load events
             await loadEvents();
         }
     });
@@ -66,11 +74,15 @@ async function initEventsPage() {
 // Load events from Firestore
 async function loadEvents() {
     try {
-        eventsGrid.innerHTML = `
-            <div class="loading-spinner">
-                <div class="spinner"></div>
-                <p>Loading events...</p>
-            </div>
+        eventsTableBody.innerHTML = `
+            <tr>
+                <td colspan="5" class="loading-cell">
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                        <p>Loading events...</p>
+                    </div>
+                </td>
+            </tr>
         `;
         
         const eventsRef = collection(db, "events");
@@ -92,130 +104,136 @@ async function loadEvents() {
             });
         });
         
-        renderEvents(events);
+        renderEventsTable(events);
+        updateStats(events);
         
-        if (events.length === 0) {
-            noEvents.style.display = 'block';
-        } else {
-            noEvents.style.display = 'none';
-        }
     } catch (error) {
         console.error("Error loading events:", error);
         showToast("Error loading events. Please try again.", "error");
         
-        eventsGrid.innerHTML = `
-            <div class="no-events">
-                <i class="fas fa-exclamation-triangle"></i>
-                <h3>Error Loading Events</h3>
-                <p>Failed to load events. Please refresh the page.</p>
-            </div>
+        eventsTableBody.innerHTML = `
+            <tr>
+                <td colspan="5" style="text-align: center; padding: 40px; color: var(--danger);">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Failed to load events. Please refresh the page.</p>
+                </td>
+            </tr>
         `;
     }
 }
 
-// Render events to the grid
-function renderEvents(eventsToRender) {
+// Render events table
+function renderEventsTable(eventsToRender) {
     if (eventsToRender.length === 0) {
-        eventsGrid.innerHTML = `
-            <div class="no-events">
-                <i class="fas fa-calendar-times"></i>
-                <h3>No Events Found</h3>
-                <p>Try adjusting your search or filter</p>
-            </div>
+        eventsTableBody.innerHTML = `
+            <tr>
+                <td colspan="5" style="text-align: center; padding: 40px; color: var(--gray);">
+                    <i class="fas fa-calendar-times"></i>
+                    <p>No events found. Add your first event!</p>
+                </td>
+            </tr>
         `;
         return;
     }
     
-    eventsGrid.innerHTML = '';
+    eventsTableBody.innerHTML = '';
     
-    eventsToRender.forEach((event, index) => {
-        const eventCard = createEventCard(event, index);
-        eventsGrid.appendChild(eventCard);
+    eventsToRender.forEach((event) => {
+        const row = createEventTableRow(event);
+        eventsTableBody.appendChild(row);
     });
 }
 
-// Create event card element
-function createEventCard(event, index) {
-    const card = document.createElement('div');
-    card.className = `event-card ${isAdmin ? 'admin-mode' : ''}`;
-    card.dataset.id = event.id;
-    card.style.animationDelay = `${index * 0.1}s`;
+// Create event table row
+function createEventTableRow(event) {
+    const row = document.createElement('tr');
     
-    const categoryBadge = getCategoryBadge(event.category || 'workshop');
+    const categoryClass = `category-${event.category}`;
+    const status = new Date(event.date) >= new Date() ? 'upcoming' : 'past';
+    const statusClass = `status-${status}`;
     const date = event.date ? new Date(event.date).toLocaleDateString('en-US', {
-        weekday: 'short',
         year: 'numeric',
         month: 'short',
         day: 'numeric'
     }) : 'Date TBD';
     
-    card.innerHTML = `
-        <div class="event-image">
-            <img src="${event.imageUrl || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'}" 
-                 alt="${event.title}" 
-                 onerror="this.src='https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'">
-            <div class="event-category ${categoryBadge.class}">${categoryBadge.text}</div>
-        </div>
-        <div class="event-content">
-            <div class="event-date">
-                <i class="far fa-calendar"></i>
-                <span>${date}</span>
+    row.innerHTML = `
+        <td data-label="Event">
+            <div class="event-cell">
+                <div class="event-image-small">
+                    <img src="${event.imageUrl}" alt="${event.title}" 
+                         onerror="this.src='https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'">
+                </div>
+                <div class="event-info">
+                    <h4>${event.title}</h4>
+                    <p>${event.description?.substring(0, 100) || 'No description'}...</p>
+                </div>
             </div>
-            <h3 class="event-title">${event.title}</h3>
-            <p class="event-description">${event.description || 'No description available.'}</p>
-            <div class="event-actions">
-                <a href="${event.googleFormLink || '#'}" 
-                   target="_blank" 
-                   class="register-btn" 
-                   ${!event.googleFormLink ? 'style="opacity: 0.5; pointer-events: none;"' : ''}>
-                    <i class="fas fa-user-plus"></i>
-                    ${event.googleFormLink ? 'Register Now' : 'Registration Closed'}
-                </a>
-                ${isAdmin ? `
-                    <div class="admin-actions">
-                        <button class="admin-btn edit-btn" data-id="${event.id}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="admin-btn delete-btn" data-id="${event.id}">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                ` : ''}
+        </td>
+        <td data-label="Category">
+            <span class="category-badge ${categoryClass}">
+                ${getCategoryText(event.category)}
+            </span>
+        </td>
+        <td data-label="Date">${date}</td>
+        <td data-label="Status">
+            <span class="status-badge ${statusClass}">
+                ${status === 'upcoming' ? 'Upcoming' : 'Past'}
+            </span>
+        </td>
+        <td data-label="Actions">
+            <div class="table-actions-cell">
+                <button class="table-action-btn edit" data-id="${event.id}">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="table-action-btn delete" data-id="${event.id}">
+                    <i class="fas fa-trash"></i>
+                </button>
             </div>
-        </div>
+        </td>
     `;
     
-    // Add event listeners for admin buttons
-    if (isAdmin) {
-        const editBtn = card.querySelector('.edit-btn');
-        const deleteBtn = card.querySelector('.delete-btn');
-        
-        editBtn.addEventListener('click', () => openEditModal(event));
-        deleteBtn.addEventListener('click', () => openDeleteModal(event));
-    }
+    // Add event listeners for action buttons
+    const editBtn = row.querySelector('.edit');
+    const deleteBtn = row.querySelector('.delete');
     
-    return card;
+    editBtn.addEventListener('click', () => openEditModal(event));
+    deleteBtn.addEventListener('click', () => openDeleteModal(event));
+    
+    return row;
 }
 
-// Get category badge
-function getCategoryBadge(category) {
+// Get category text
+function getCategoryText(category) {
     const categories = {
-        workshop: { text: 'Workshop', class: 'badge-workshop' },
-        competition: { text: 'Competition', class: 'badge-competition' },
-        seminar: { text: 'Seminar', class: 'badge-seminar' },
-        hackathon: { text: 'Hackathon', class: 'badge-hackathon' },
-        conference: { text: 'Conference', class: 'badge-conference' }
+        workshop: 'Workshop',
+        competition: 'Competition',
+        seminar: 'Seminar',
+        hackathon: 'Hackathon',
+        conference: 'Conference'
     };
     
-    return categories[category] || categories.workshop;
+    return categories[category] || 'Workshop';
 }
 
-// Filter and sort events
-function filterAndSortEvents() {
+// Update statistics
+function updateStats(eventsList) {
+    totalEventsElement.textContent = eventsList.length;
+    
+    const upcoming = eventsList.filter(event => {
+        if (!event.date) return false;
+        return new Date(event.date) >= new Date();
+    }).length;
+    
+    upcomingEventsElement.textContent = upcoming;
+}
+
+// Filter events
+function filterEvents() {
+    const searchTerm = eventSearch.value.toLowerCase();
+    
     let filteredEvents = [...events];
     
-    // Filter by search
-    const searchTerm = searchInput.value.toLowerCase();
     if (searchTerm) {
         filteredEvents = filteredEvents.filter(event => 
             event.title.toLowerCase().includes(searchTerm) ||
@@ -223,34 +241,27 @@ function filterAndSortEvents() {
         );
     }
     
-    // Filter by category
-    const category = filterCategory.value;
-    if (category !== 'all') {
-        filteredEvents = filteredEvents.filter(event => 
-            event.category === category
-        );
-    }
-    
-    // Sort events
-    const sortBy = filterSort.value;
-    filteredEvents.sort((a, b) => {
-        switch (sortBy) {
-            case 'newest':
-                return new Date(b.createdAt?.toDate() || 0) - new Date(a.createdAt?.toDate() || 0);
-            case 'oldest':
-                return new Date(a.createdAt?.toDate() || 0) - new Date(b.createdAt?.toDate() || 0);
-            case 'alphabetical':
-                return a.title.localeCompare(b.title);
-            default:
-                return 0;
-        }
-    });
-    
-    renderEvents(filteredEvents);
+    renderEventsTable(filteredEvents);
 }
 
 // Setup event listeners
 function setupEventListeners() {
+    // Mobile menu toggle
+    if (mobileToggle) {
+        mobileToggle.addEventListener('click', () => {
+            navLinks.classList.toggle('show');
+        });
+    }
+    
+    // Logout button
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            await logoutUser();
+            window.location.href = 'index.html';
+        });
+    }
+    
     // Add event button
     if (addEventBtn) {
         addEventBtn.addEventListener('click', () => {
@@ -259,24 +270,15 @@ function setupEventListeners() {
         });
     }
     
-    // Modal close buttons
-    modalCloseBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            closeAllModals();
-        });
-    });
+    // Refresh events button
+    if (refreshEventsBtn) {
+        refreshEventsBtn.addEventListener('click', loadEvents);
+    }
     
-    // Cancel buttons
-    cancelBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            closeAllModals();
-        });
-    });
-    
-    // Search and filter
-    searchInput.addEventListener('input', filterAndSortEvents);
-    filterCategory.addEventListener('change', filterAndSortEvents);
-    filterSort.addEventListener('change', filterAndSortEvents);
+    // Event search
+    if (eventSearch) {
+        eventSearch.addEventListener('input', filterEvents);
+    }
     
     // Form submissions
     if (addEventForm) {
@@ -286,6 +288,11 @@ function setupEventListeners() {
     if (editEventForm) {
         editEventForm.addEventListener('submit', handleEditEvent);
     }
+    
+    // Modal close buttons
+    document.querySelectorAll('.modal-close, .cancel-btn, .btn-outline').forEach(btn => {
+        btn.addEventListener('click', closeAllModals);
+    });
     
     // Delete modal buttons
     if (cancelDeleteBtn) {
@@ -303,6 +310,13 @@ function setupEventListeners() {
     window.addEventListener('click', (e) => {
         if (e.target.classList.contains('modal')) {
             closeAllModals();
+        }
+    });
+    
+    // Close mobile menu when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.nav-menu') && navLinks.classList.contains('show')) {
+            navLinks.classList.remove('show');
         }
     });
 }
@@ -472,5 +486,5 @@ async function handleDeleteEvent() {
     }
 }
 
-// Initialize page
-initEventsPage();
+// Initialize admin page
+initAdminPage();

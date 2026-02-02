@@ -16,7 +16,7 @@ const navLinks = document.querySelector('.nav-links');
 // Mobile Menu Toggle
 if (mobileToggle) {
     mobileToggle.addEventListener('click', () => {
-        navLinks.style.display = navLinks.style.display === 'flex' ? 'none' : 'flex';
+        navLinks.classList.toggle('show');
     });
 }
 
@@ -26,7 +26,7 @@ onAuthChange(async (authState) => {
         // User is logged in
         loginNav.style.display = 'none';
         registerNav.style.display = 'none';
-        navProfile.style.display = 'block';
+        navProfile.style.display = 'flex';
         
         // Update user info
         if (authState.userData) {
@@ -36,7 +36,7 @@ onAuthChange(async (authState) => {
             const name = authState.userData.name || authState.user.email;
             const initials = name.charAt(0).toUpperCase();
             userAvatar.innerHTML = `<span>${initials}</span>`;
-            userAvatar.style.background = `linear-gradient(135deg, var(--accent), var(--secondary))`;
+            userAvatar.style.background = `linear-gradient(135deg, var(--primary), var(--secondary))`;
         }
         
         // Check if user is admin
@@ -47,8 +47,8 @@ onAuthChange(async (authState) => {
         
     } else {
         // User is not logged in
-        loginNav.style.display = 'block';
-        registerNav.style.display = 'block';
+        loginNav.style.display = 'flex';
+        registerNav.style.display = 'flex';
         navProfile.style.display = 'none';
     }
 });
@@ -83,36 +83,16 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
                 top: targetElement.offsetTop - 80,
                 behavior: 'smooth'
             });
+            // Close mobile menu if open
+            navLinks.classList.remove('show');
         }
     });
 });
 
-// Intersection Observer for animations
-const observerOptions = {
-    threshold: 0.1,
-    rootMargin: '0px 0px -50px 0px'
-};
-
-const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-        if (entry.isIntersecting) {
-            entry.target.classList.add('animate-in');
-        }
-    });
-}, observerOptions);
-
-// Observe all sections for animation
-document.querySelectorAll('.section, .stat-card, .highlight, .hod-card, .cta-card').forEach(el => {
-    observer.observe(el);
-});
-
-// Parallax effect for hero section
-window.addEventListener('scroll', () => {
-    const scrolled = window.pageYOffset;
-    const hero = document.querySelector('.hero');
-    if (hero) {
-        const rate = scrolled * -0.5;
-        hero.style.backgroundPosition = `center ${rate}px`;
+// Close mobile menu when clicking outside
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.nav-menu') && navLinks.classList.contains('show')) {
+        navLinks.classList.remove('show');
     }
 });
 
@@ -160,19 +140,6 @@ style.textContent = `
     .btn {
         position: relative;
         overflow: hidden;
-    }
-    .animate-in {
-        animation: fadeInUp 0.6s ease forwards;
-    }
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(30px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
     }
 `;
 document.head.appendChild(style);
