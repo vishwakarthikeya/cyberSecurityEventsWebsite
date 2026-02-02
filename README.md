@@ -1,6 +1,6 @@
 # TechnoFest Event Management System
 
-A complete event management system for TechnoFest at Sri Nidhi College of Engineering, Cybersecurity Department. This is a multi-page website with Firebase backend integration, admin panel, and user authentication.
+A complete event management system for TechnoFest at Sri indu College of Engineering, Cybersecurity Department. This is a multi-page website with Firebase backend integration, admin panel, and user authentication.
 
 ## Features
 
@@ -101,4 +101,5 @@ Go to "Realtime Database" → "Rules" tab and replace with:
       ".write": "auth != null"
     }
   }
+
 }
