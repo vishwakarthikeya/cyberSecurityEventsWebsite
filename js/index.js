@@ -1,120 +1,174 @@
 // Main JavaScript for Home Page
-import { onAuthChange, logoutUser, isUserAdmin } from './auth.js';
 
+import { onAuthChange, logoutUser } from "./auth.js";
+
+
+// =======================
 // DOM Elements
-const navProfile = document.getElementById('nav-profile');
-const loginNav = document.getElementById('login-nav');
-const registerNav = document.getElementById('register-nav');
-const userAvatar = document.getElementById('user-avatar');
-const userName = document.getElementById('user-name');
-const profileLink = document.getElementById('profile-link');
-const adminLink = document.getElementById('admin-link');
-const logoutBtn = document.getElementById('logout-btn');
-const mobileToggle = document.getElementById('mobileToggle');
-const navLinks = document.querySelector('.nav-links');
+// =======================
 
+const navProfile = document.getElementById("nav-profile");
+const loginNav = document.getElementById("login-nav");
+const registerNav = document.getElementById("register-nav");
+const userAvatar = document.getElementById("user-avatar");
+const userName = document.getElementById("user-name");
+const profileLink = document.getElementById("profile-link");
+const adminLink = document.getElementById("admin-link");
+const logoutBtn = document.getElementById("logout-btn");
+const mobileToggle = document.getElementById("mobileToggle");
+const navLinks = document.querySelector(".nav-links");
+
+// =======================
 // Mobile Menu Toggle
+// =======================
+
 if (mobileToggle) {
-    mobileToggle.addEventListener('click', () => {
-        navLinks.classList.toggle('show');
+    mobileToggle.addEventListener("click", () => {
+        navLinks.classList.toggle("show");
     });
 }
 
-// Handle Authentication State Changes
+// =======================
+// Auth State Listener
+// =======================
+
 onAuthChange(async (authState) => {
+
+    console.log("AUTH STATE:", authState);
+
     if (authState.loggedIn && authState.user) {
-        // User is logged in
-        loginNav.style.display = 'none';
-        registerNav.style.display = 'none';
-        navProfile.style.display = 'flex';
-        
-        // Update user info
+
+        if (loginNav) loginNav.style.display = "none";
+        if (registerNav) registerNav.style.display = "none";
+        if (navProfile) navProfile.style.display = "flex";
+
+        // -----------------------
+        // User Info
+        // -----------------------
+
         if (authState.userData) {
-            userName.textContent = authState.userData.name || authState.user.email;
-            
-            // Create avatar with initials
-            const name = authState.userData.name || authState.user.email;
-            const initials = name.charAt(0).toUpperCase();
-            userAvatar.innerHTML = `<span>${initials}</span>`;
-            userAvatar.style.background = `linear-gradient(135deg, var(--primary), var(--secondary))`;
+
+            if (userName) {
+                userName.textContent =
+                    authState.userData.name || authState.user.email;
+            }
+
+            if (userAvatar) {
+                const name =
+                    authState.userData.name || authState.user.email;
+                userAvatar.innerHTML = `<span>${name.charAt(0).toUpperCase()}</span>`;
+            }
+
+            // -----------------------
+            // ADMIN CHECK (FIXED)
+            // -----------------------
+
+            if (adminLink) {
+
+                console.log("ROLE:", authState.userData.role);
+
+                if (authState.userData.role === "admin") {
+                    adminLink.style.display = "block";
+                } else {
+                    adminLink.style.display = "none";
+                }
+            }
         }
-        
-        // Check if user is admin
-        const isAdmin = await isUserAdmin(authState.user.uid);
-        if (isAdmin) {
-            adminLink.style.display = 'block';
-        }
-        
+
     } else {
-        // User is not logged in
-        loginNav.style.display = 'flex';
-        registerNav.style.display = 'flex';
-        navProfile.style.display = 'none';
+
+        if (loginNav) loginNav.style.display = "flex";
+        if (registerNav) registerNav.style.display = "flex";
+        if (navProfile) navProfile.style.display = "none";
+        if (adminLink) adminLink.style.display = "none";
     }
+
 });
 
-// Handle Logout
+// =======================
+// Logout
+// =======================
+
 if (logoutBtn) {
-    logoutBtn.addEventListener('click', async (e) => {
+    logoutBtn.addEventListener("click", async (e) => {
         e.preventDefault();
         await logoutUser();
-        window.location.href = 'index.html';
+        window.location.href = "index.html";
     });
 }
 
-// Handle Admin Link
+// =======================
+// Admin Link Click
+// =======================
+
 if (adminLink) {
-    adminLink.addEventListener('click', (e) => {
+    adminLink.addEventListener("click", (e) => {
         e.preventDefault();
-        window.location.href = 'admin.html';
+        window.location.href = "admin.html";
     });
 }
 
-// Smooth scrolling for anchor links
+// =======================
+// Smooth Scroll
+// =======================
+
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-    anchor.addEventListener('click', function (e) {
+    anchor.addEventListener("click", function (e) {
         e.preventDefault();
-        const targetId = this.getAttribute('href');
-        if (targetId === '#') return;
-        
+
+        const targetId = this.getAttribute("href");
+        if (targetId === "#") return;
+
         const targetElement = document.querySelector(targetId);
+
         if (targetElement) {
             window.scrollTo({
                 top: targetElement.offsetTop - 80,
-                behavior: 'smooth'
+                behavior: "smooth"
             });
-            // Close mobile menu if open
-            navLinks.classList.remove('show');
+
+            navLinks.classList.remove("show");
         }
     });
 });
 
-// Close mobile menu when clicking outside
-document.addEventListener('click', (e) => {
-    if (!e.target.closest('.nav-menu') && navLinks.classList.contains('show')) {
-        navLinks.classList.remove('show');
+// =======================
+// Close mobile menu
+// =======================
+
+document.addEventListener("click", (e) => {
+    if (!e.target.closest(".nav-menu") && navLinks.classList.contains("show")) {
+        navLinks.classList.remove("show");
     }
 });
 
-// Add loading animation
-window.addEventListener('load', () => {
-    document.body.classList.add('loaded');
+// =======================
+// Page Loaded Animation
+// =======================
+
+window.addEventListener("load", () => {
+    document.body.classList.add("loaded");
 });
 
-// Ripple effect for buttons
-document.addEventListener('click', function(e) {
-    if (e.target.closest('.btn')) {
-        const btn = e.target.closest('.btn');
-        const ripple = document.createElement('span');
+// =======================
+// Ripple Effect
+// =======================
+
+document.addEventListener("click", function (e) {
+
+    if (e.target.closest(".btn")) {
+
+        const btn = e.target.closest(".btn");
+        const ripple = document.createElement("span");
         const rect = btn.getBoundingClientRect();
         const size = Math.max(rect.width, rect.height);
         const x = e.clientX - rect.left - size / 2;
         const y = e.clientY - rect.top - size / 2;
-        
+
         ripple.style.cssText = `
             position: absolute;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.6);
+            background: rgba(255,255,255,0.6);
             transform: scale(0);
             animation: ripple-animation 0.6s linear;
             width: ${size}px;
@@ -122,35 +176,44 @@ document.addEventListener('click', function(e) {
             top: ${y}px;
             left: ${x}px;
         `;
-        
+
         btn.appendChild(ripple);
         setTimeout(() => ripple.remove(), 600);
     }
+
 });
 
-// Add ripple animation to CSS
-const style = document.createElement('style');
+// =======================
+// Ripple CSS
+// =======================
+
+const style = document.createElement("style");
+
 style.textContent = `
-    @keyframes ripple-animation {
-        to {
-            transform: scale(4);
-            opacity: 0;
-        }
+@keyframes ripple-animation {
+    to {
+        transform: scale(4);
+        opacity: 0;
     }
-    .btn {
-        position: relative;
-        overflow: hidden;
-    }
+}
+.btn {
+    position: relative;
+    overflow: hidden;
+}
 `;
+
 document.head.appendChild(style);
 
-// Initialize all animations
+// =======================
+// Init Animations
+// =======================
+
 function initAnimations() {
-    // Add animation delay to cards
-    document.querySelectorAll('.stat-card, .highlight').forEach((card, index) => {
-        card.style.animationDelay = `${index * 0.1}s`;
-    });
+    document
+        .querySelectorAll(".stat-card, .highlight")
+        .forEach((card, index) => {
+            card.style.animationDelay = `${index * 0.1}s`;
+        });
 }
 
-// Call initialization
 initAnimations();

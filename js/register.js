@@ -134,11 +134,6 @@ function validateForm() {
         isValid = false;
     }
     
-    // Terms validation
-    if (!termsCheckbox.checked) {
-        alert('Please accept the terms and conditions');
-        isValid = false;
-    }
     
     return isValid;
 }
